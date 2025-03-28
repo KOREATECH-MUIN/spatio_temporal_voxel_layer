@@ -139,19 +139,13 @@ void MeasurementBuffer::BufferROSCloud(
 
     // transform the cloud in the global frame
     point_cloud_ptr cld_global(new sensor_msgs::msg::PointCloud2());
-    geometry_msgs::msg::TransformStamped tf_stamped =
-      _buffer.lookupTransform(
-      _global_frame, cloud.header.frame_id,
-      tf2_ros::fromMsg(cloud.header.stamp));
-    tf2::doTransform(cloud, *cld_global, tf_stamped);
-
     pcl::PCLPointCloud2::Ptr cloud_pcl(new pcl::PCLPointCloud2());
     pcl::PCLPointCloud2::Ptr cloud_filtered(new pcl::PCLPointCloud2());
 
     // remove points that are below or above our height restrictions, and
     // in the same time, remove NaNs and if user wants to use it, combine with a
     if (_filter == Filters::VOXEL) {
-      pcl_conversions::toPCL(*cld_global, *cloud_pcl);
+      pcl_conversions::toPCL(cloud, *cloud_pcl);
       pcl::VoxelGrid<pcl::PCLPointCloud2> sor;
       sor.setInputCloud(cloud_pcl);
       sor.setFilterFieldName("z");
@@ -163,7 +157,7 @@ void MeasurementBuffer::BufferROSCloud(
       sor.filter(*cloud_filtered);
       pcl_conversions::fromPCL(*cloud_filtered, *cld_global);
     } else if (_filter == Filters::PASSTHROUGH) {
-      pcl_conversions::toPCL(*cld_global, *cloud_pcl);
+      pcl_conversions::toPCL(cloud, *cloud_pcl);
       pcl::PassThrough<pcl::PCLPointCloud2> pass_through_filter;
       pass_through_filter.setInputCloud(cloud_pcl);
       pass_through_filter.setKeepOrganized(false);
@@ -173,6 +167,12 @@ void MeasurementBuffer::BufferROSCloud(
       pass_through_filter.filter(*cloud_filtered);
       pcl_conversions::fromPCL(*cloud_filtered, *cld_global);
     }
+
+    geometry_msgs::msg::TransformStamped tf_stamped =
+      _buffer.lookupTransform(
+      _global_frame, cloud.header.frame_id,
+      tf2_ros::fromMsg(cloud.header.stamp));
+    tf2::doTransform(*cld_global, *cld_global, tf_stamped);
 
     _observation_list.front()._cloud.reset(cld_global.release());
   } catch (tf2::TransformException & ex) {
